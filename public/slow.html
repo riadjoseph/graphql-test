@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Slow Product Detail Page</title>
+
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    #product-detail, #related-products {
+      margin: 20px;
+      padding: 10px;
+      border: 1px solid #ccc;
+    }
+    #product-detail {
+      text-align: center;
+    }
+    #product-detail img {
+      max-width: 100%;
+      height: auto;
+    }
+    #related-products-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 20px;
+      justify-content: center;
+    }
+    .related-product {
+      border: 1px solid #ddd;
+      padding: 10px;
+      text-align: center;
+      max-width: 150px;
+      width: 100%;
+    }
+    .related-product img {
+      max-width: 100%;
+      height: auto;
+    }
+
+    @media (max-width: 768px) {
+      #related-products-list {
+        flex-direction: column;
+        align-items: center;
+      }
+      .related-product {
+        max-width: 90%;
+      }
+    }
+
+    @media (max-width: 480px) {
+      #product-detail, #related-products {
+        margin: 10px;
+        padding: 5px;
+      }
+      #related-products-list {
+        gap: 10px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div id="product-detail">
+    <h1 id="product-name">Loading...</h1>
+    <p id="product-price">Loading...</p>
+    <img id="product-image" src="" alt="Product Image" />
+  </div>
+  <div id="related-products">
+    <h2>You Might Also Like</h2>
+    <div id="related-products-list">
+      <!-- Related products will be loaded here -->
+    </div>
+  </div>
+  <script src="axios.min.js"></script>
+  <script>
+    document.addEventListener("DOMContentLoaded", function () {
+      const productId = '1'; // Product ID to fetch
+
+      // Function to fetch product data
+      function fetchProduct() {
+        return axios.post('http://localhost:4000/graphql', {
+          query: `
+            query {
+              product(id: "${productId}") {
+                name
+                price
+                imageUrl
+              }
+            }
+          `
+        });
+      }
+
+      // Function to fetch related products
+      function fetchRelatedProducts() {
+        return axios.post('http://localhost:4000/graphql', {
+          query: `
+            query {
+              relatedProducts {
+                id
+                name
+                price
+                imageUrl
+              }
+            }
+          `
+        });
+      }
+
+      // Function to simulate multiple GraphQL requests for related products
+      function fetchMultipleRelatedProducts() {
+        const promises = [];
+        for (let i = 0; i < 30; i++) {
+          promises.push(fetchRelatedProducts());
+        }
+        return Promise.all(promises);
+      }
+
+      // Load product and related products
+      Promise.all([fetchProduct(), fetchMultipleRelatedProducts()])
+        .then(([productRes, relatedResArray]) => {
+          if (productRes.data && productRes.data.data && productRes.data.data.product) {
+            const product = productRes.data.data.product;
+            document.getElementById('product-name').textContent = product.name;
+            document.getElementById('product-price').textContent = `$${product.price}`;
+            document.getElementById('product-image').src = product.imageUrl;
+            document.getElementById('product-image').alt = product.name; // Add alt text to the image
+          } else {
+            console.error('Product data not found');
+          }
+
+          // Ensure only unique related products are displayed
+          const uniqueProducts = new Map();
+          relatedResArray.forEach(relatedRes => {
+            if (relatedRes.data && relatedRes.data.data && relatedRes.data.data.relatedProducts) {
+              relatedRes.data.data.relatedProducts.forEach(product => {
+                if (!uniqueProducts.has(product.id)) {
+                  uniqueProducts.set(product.id, product);
+                }
+              });
+            } else {
+              console.error('Related products data not found');
+            }
+          });
+
+          // Display only 30 related products
+          const relatedProductsList = document.getElementById('related-products-list');
+          Array.from(uniqueProducts.values()).slice(0, 30).forEach(product => {
+            const productElement = document.createElement('div');
+            productElement.className = 'related-product';
+            productElement.innerHTML = `
+              <img src="${product.imageUrl}" alt="${product.name}" />
+              <p>${product.name}</p>
+              <p>$${product.price}</p>
+            `;
+            relatedProductsList.appendChild(productElement);
+          });
+        })
+        .catch(err => {
+          console.error('Error fetching data:', err);
+        });
+    });
+  </script>
+</body>
+</html>
